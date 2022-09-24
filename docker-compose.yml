@@ -1,0 +1,49 @@
+version: '3.9'
+
+services:
+
+  db:
+    image: postgres:13.0-alpine
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  web:
+    container_name: web
+    build: .
+    env_file: .env
+    volumes:
+      - ./app/:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+      - db
+    command: python manage.py runserver 0.0.0.0:8000
+
+  celery:
+    build: .
+    command: celery -A payroll worker -l info
+    env_file: .env
+    restart: unless-stopped
+    depends_on:
+      - web
+      - redis
+
+  redis:
+    image: redis:6-alpine
+    restart: unless-stopped
+
+  flower:
+    build: .
+    env_file: .env
+    ports:
+      - '5555:5555'
+    command: "celery -A payroll flower --address=0.0.0.0"
+    depends_on:
+      - web
+      - redis
+      - celery
